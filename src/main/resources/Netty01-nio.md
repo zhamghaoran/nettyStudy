@@ -222,7 +222,7 @@ compact 方法，是把未读完的部分向前压缩，然后切换至写模式
 #### 💡 调试工具类
 
 ```java
-public class ByteBufferUtil {
+public class c1.ByteBufferUtil {
     private static final char[] BYTE2CHAR = new char[256];
     private static final char[] HEXDUMP_TABLE = new char[256 * 4];
     private static final String[] HEXPADDING = new String[16];

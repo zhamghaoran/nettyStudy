@@ -1,3 +1,5 @@
+package c1;
+
 import java.nio.ByteBuffer;
 
 public class TestByteBufferAllocate {
