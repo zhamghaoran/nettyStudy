@@ -13,6 +13,7 @@ public class TestByteBufferAllocate {
         byteBuffer.put((byte) 0x61);
         byteBuffer.put((byte) 0x62);
         byteBuffer.rewind();  // 会让position的位置归0
+        byteBuffer.flip();
         byte b = byteBuffer.get(); // get会让pos的位置后移一位
         System.out.println((char) b);
         byteBuffer.put((byte) 0x63); // 所以索引为2的位置的值被改变了
