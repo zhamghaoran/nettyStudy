@@ -6,11 +6,14 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -26,7 +29,6 @@ public class Server {
         // 2. 建立selector 和 Channel 的联系 (注册)
         // SelectionKey 事件发生后，通过它可以得到这个是什么事件，可以知道是哪个Channel发生的事件
         SelectionKey sscKey = ssc.register(selector, 0, null);
-
         sscKey.interestOps(SelectionKey.OP_ACCEPT); // key只关注accept事件
         log.debug("register key:{}", sscKey);
         ssc.bind(new InetSocketAddress(8080));
@@ -37,7 +39,11 @@ public class Server {
             selector.select();
             // 处理事件，SelectedKeys 内部包含了所有发生的事件
             Set<SelectionKey> selectionKeys = selector.selectedKeys();  // accept,read,
-            selectionKeys.forEach(i -> {
+            Iterator<SelectionKey> iterator = selectionKeys.iterator();
+            while (iterator.hasNext()) {
+                SelectionKey i = iterator.next();
+                // 处理key的时候，处理完了之后要及时删除
+                iterator.remove();
                 log.debug("key: {}", i);
                 // 5.区分事件类型
                 if (i.isAcceptable()) {
@@ -49,20 +55,29 @@ public class Server {
                         scKey.interestOps(SelectionKey.OP_READ);
                         log.debug("{}", sc);
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        e.printStackTrace();
+                        i.cancel();
                     }
                 } else if (i.isReadable()) {
                     // 读取数据的处理
                     SocketChannel channel = (SocketChannel) i.channel(); // 拿到触发事件的Channel
                     try {
-                        channel.read(byteBuffer);
-                        byteBuffer.flip();
-                        ByteBufferUtil.debugAll(byteBuffer);
+                        ByteBuffer buffer = ByteBuffer.allocate(4);
+                        int read = channel.read(buffer); // 如果是正常断开read返回值是-1
+                        if (read <= 1) {
+                            i.cancel();
+                        } else {
+                            buffer.flip();
+//                            ByteBufferUtil.debugAll(buffer);
+                            System.out.println(Charset.defaultCharset().decode(buffer));
+                        }
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        // 因为客户端断开了，因此需要把这个key取消（从selector的key集合中真正删除）
+                        e.printStackTrace();
+                        i.cancel();
                     }
                 }
-            });
+            }
         }
     }
 }
