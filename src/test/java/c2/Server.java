@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.SelectionKey;
@@ -51,7 +52,9 @@ public class Server {
                     try {
                         SocketChannel sc = channel.accept();
                         sc.configureBlocking(false);
-                        SelectionKey scKey = sc.register(selector, 0, null);
+                        ByteBuffer buffer = ByteBuffer.allocate(16);
+                        // 将byteBuffer作为附件关联到selectionKey上面
+                        SelectionKey scKey = sc.register(selector, 0, buffer);
                         scKey.interestOps(SelectionKey.OP_READ);
                         log.debug("{}", sc);
                     } catch (IOException e) {
@@ -62,14 +65,19 @@ public class Server {
                     // 读取数据的处理
                     SocketChannel channel = (SocketChannel) i.channel(); // 拿到触发事件的Channel
                     try {
-                        ByteBuffer buffer = ByteBuffer.allocate(4);
+                        // 获取selectionKey上面的附件
+                        ByteBuffer buffer = (ByteBuffer) i.attachment();  // 获取
                         int read = channel.read(buffer); // 如果是正常断开read返回值是-1
                         if (read <= 1) {
                             i.cancel();
                         } else {
-                            buffer.flip();
-//                            ByteBufferUtil.debugAll(buffer);
-                            System.out.println(Charset.defaultCharset().decode(buffer));
+                            split(buffer);
+                            if (buffer.position() == buffer.limit()) {
+                                ByteBuffer newBuffer = ByteBuffer.allocate(buffer.capacity() * 2);
+                                buffer.flip();
+                                newBuffer.put(buffer);
+                                i.attach(newBuffer);
+                            }
                         }
                     } catch (IOException e) {
                         // 因为客户端断开了，因此需要把这个key取消（从selector的key集合中真正删除）
@@ -79,5 +87,23 @@ public class Server {
                 }
             }
         }
+    }
+
+    private static void split(ByteBuffer source) {
+        source.flip();
+        for (int i = 0; i < source.limit(); i++) {
+            // 找到一条完整消息
+            if (source.get(i) == '\n') {
+                int len = i + 1 - source.position();
+                // 把这条完整消息存到新的bytebuffer
+                ByteBuffer tar = ByteBuffer.allocate(len);
+                // 从source里面读
+                for (int j = 0; j < len; j++) {
+                    tar.put(source.get());
+                }
+                ByteBufferUtil.debugAll(tar);
+            }
+        }
+        source.compact();
     }
 }
